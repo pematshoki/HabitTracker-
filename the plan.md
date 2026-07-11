@@ -1,70 +1,100 @@
-# Trajectory — a group habit tracker that shows you your future self
+# Meme Trend Radar
 
-**Hackathon project brief** · built entirely within the time limit · single self-contained HTML file, no accounts or setup
+A live radar for internet culture. It scans Reddit's meme communities, groups
+the hottest posts into distinct **formats**, and scores each one by how fast
+it's gaining traction — so you can see what's spiking *before* it peaks.
 
----
-
-## The pitch
-
-A habit tracker for a small group of friends who are leveling up together. Streaks and points, like you'd expect — but with two twists that reinforce each other:
-
-1. **It's built for a squad.** You track alongside 3–4 collaborators, with a shared leaderboard and a *squad streak* that only survives if everyone shows up.
-2. **It projects your future self.** Based on how you've actually been doing, it shows you who you're becoming — and forks that into two paths: *stay on it* vs *slip*.
-
-The key idea that ties them together: **you can see your friends' future selves too.** A "Now / In 30 days" toggle on the leaderboard re-ranks everyone by their *trajectory*, not their current points. Watching a friend's projected self overtake yours because they didn't skip their runs is the whole hook.
+By the time you notice a meme format, it's usually already dead. There's no
+Bloomberg terminal for internet culture. This is a small attempt at one.
 
 ---
 
-## Core features
+## What it does
 
-- **Habits with streaks and points** — the familiar loop, so it feels instantly usable.
-- **Squad streak** — consecutive days where *every* member completes at least one habit. Collective stakes; one person flaking breaks it for everyone.
-- **Future-self fork (the signature)** — your current trajectory splits into two futures:
-  - projected attributes (e.g. Vitality, Wisdom, Calm, Energy) for each path
-  - a diverging points chart showing the two futures pulling apart
-  - a short *"letter from future you"* for each path — the emotional gut-punch
-- **Time controls** — *Log today* banks your real choices; *Simulate a week* fast-forwards so the trajectory story is legible in a live demo with zero elapsed days.
+- Pulls the current hot posts from `r/memes`, `r/dankmemes`, and
+  `r/wholesomememes`.
+- Groups them into named meme formats (e.g. *Aura Points*, *POV Format*).
+- Scores each format's **heat** from real upvote velocity.
+- Plots every format as a blip on a radar scope — hotter formats sit closer to
+  the center; pink is rising, blue is cooling, amber is steady.
+- Shows up to **3 real thumbnails** per format, pulled live from the actual
+  posts.
 
----
+## How it works
 
-## Scope (kept deliberately tight for the time limit)
+The pipeline runs entirely on a small Flask server, so nothing sensitive or
+CORS-blocked happens in the browser:
 
-**In:**
-- 4 seeded members ("You" + 3 friends), each pre-loaded with ~2 weeks of history so the app looks alive from the first second
-- Friends auto-simulate based on a consistency profile
-- Everything self-contained — one HTML file, no backend, no auth, no API keys
+1. **Fetch** — the server requests each subreddit's `hot.json` feed. Doing this
+   server-side sidesteps the browser's cross-origin restrictions and lets us
+   read each post's real image URL. NSFW-flagged and pinned posts are filtered
+   out.
+2. **Cluster** — the server reads all the post titles, finds phrases that recur
+   across multiple posts (favoring two-word phrases, which are more specific),
+   and groups the posts that share them. Each group becomes a format, named
+   after its dominant phrase. A small lookup table upgrades well-known phrases
+   to nicer labels ("chill guy" → *Chill Guy*).
+3. **Score** — heat is **upvote velocity**: a post's score divided by its age
+   in hours, summed across a format's posts, then normalized to 0–100. A
+   two-hour-old post outrunning an all-day post ranks higher. Rising vs. cooling
+   is approximated from whether a format's posts are newer or older than the
+   overall batch.
+4. **Display** — the browser calls the server's `/api/scan` endpoint (same
+   origin, no keys) and renders the radar scope, a ranked leaderboard, and the
+   real thumbnails.
 
-**Cut on purpose (scope traps):**
-- Real accounts, login, notifications, chat
-- Real multiplayer infrastructure (the "group" is seeded and simulated)
-- Anything that needs real days to pass — that's what the fast-forward button is for
+If the live scan ever fails, the page falls back to a bundled sample set
+automatically, so the demo never shows a broken screen.
 
----
+## Running it
 
-## Demo flow (≈60 seconds on stage)
+```bash
+pip install -r requirements.txt
+python app.py
+```
 
-1. Open it — populated leaderboard, live streaks, a squad on a 9-day run.
-2. Check off today's habits as "You"; points and streaks update.
-3. Show the future-self fork: *stay on it* vs *slip*, side by side, with the two letters.
-4. Hit **Simulate a week** — watch streaks climb, points diverge, and the leaderboard reshuffle.
-5. Flip the leaderboard to **In 30 days** — reveal whose future self is winning.
+Then open **http://localhost:5000** and click **Scan now**.
 
----
+> Important: the real images only appear when you view the page *through* the
+> running server at `localhost:5000`. Opening `index.html` directly (a
+> `file://` path) skips the server, so there's no Reddit fetch and you'll see
+> placeholder cards instead.
 
-## Why it works
+No API key and no paid services are required.
 
-- **Demo-friendly:** the stakes are visible on screen, and the fast-forward makes a time-based concept land in seconds.
-- **On-theme:** the two twists aren't bolted on — the future-self projection is what makes the social layer competitive and the social layer is what makes the projection sting.
-- **Achievable:** no infrastructure, no dependencies. It's one file you can open anywhere.
+## Tech stack
 
----
+- **Backend:** Python + Flask
+- **Data source:** Reddit public `hot.json` feeds
+- **Frontend:** a single self-contained HTML file — vanilla JS, an inline SVG
+  radar scope, no build step and no framework
 
-## Stretch ideas (only if there's time to spare)
+## Design decisions
 
-- Nudge / cheer buttons between friends
-- A "letter from future you" powered by an actual LLM call for freeform, personalized notes
-- A shared group goal that unlocks something when the whole squad hits a threshold
+- **Server-side fetch.** The browser can *display* any image URL, but it can't
+  reliably *fetch* Reddit's JSON cross-origin. Moving the fetch to the server
+  is what makes real, current images possible.
+- **Velocity over raw score.** Ranking by total upvotes just surfaces old
+  popular posts. Dividing by age surfaces genuine momentum, which is the whole
+  point of a "trend radar."
+- **Graceful degradation.** A live demo that depends on an external feed will
+  eventually hit a bad moment. The automatic fallback means a failed fetch
+  never becomes a blank screen in front of an audience.
 
----
+## Known tradeoffs
 
-*Working title: **Trajectory**. Tagline: "See who you're becoming — together."*
+- Clustering is based on shared literal phrases, so it groups by wording rather
+  than meaning — it catches phrase-driven trends well but won't recognize that
+  two differently-worded posts are the same joke.
+- Format names default to the recurring phrase, so alongside the punchy ones
+  you'll occasionally get a plain label like *Cat* or *Monday*.
+- Rising/cooling is a one-snapshot heuristic, not a true time series.
+
+## Where it could go next
+
+- **Semantic clustering** with an embedding or language model, to group posts
+  by meaning instead of exact wording.
+- **True velocity** by caching each scan and diffing heat between runs, turning
+  the rising/cooling label into a real time series.
+- **More sources** — TikTok, X, or Instagram feeds alongside Reddit.
+- **Auto-refresh** so the radar updates itself on a timer.
