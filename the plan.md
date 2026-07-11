@@ -1,4 +1,5 @@
-Meme Trend Radar
+#Meme Trend Radar
+
 Project Overview
 
 Meme Trend Radar is a web-based dashboard designed to discover and visualize trending meme formats from Reddit communities in real time. The application uses an AI-powered web search to identify popular meme templates, analyze their popularity, and display them through an interactive radar interface and ranking board.
