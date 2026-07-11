@@ -1,4 +1,4 @@
-#Meme Trend Radar
+**Meme Trend Radar**
 
 Project Overview
 
