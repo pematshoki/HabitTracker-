@@ -19,7 +19,6 @@ The key idea that ties them together: **you can see your friends' future selves 
 
 - **Habits with streaks and points** — the familiar loop, so it feels instantly usable.
 - **Squad streak** — consecutive days where *every* member completes at least one habit. Collective stakes; one person flaking breaks it for everyone.
-- **Leaderboard** — ranks the group by points, with a toggle to flip between *Now* and *projected 30 days out*.
 - **Future-self fork (the signature)** — your current trajectory splits into two futures:
   - projected attributes (e.g. Vitality, Wisdom, Calm, Energy) for each path
   - a diverging points chart showing the two futures pulling apart
