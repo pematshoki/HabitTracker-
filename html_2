@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meme Trend Radar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #0B0E14;
+    --panel: #131824;
+    --panel-edge: #1F2838;
+    --grid: #2A3348;
+    --amber: #FFB23E;
+    --amber-dim: #8A6D3B;
+    --bone: #E8E4D8;
+    --bone-dim: #7C8296;
+    --rising: #FF4D8D;
+    --falling: #4DD2FF;
+    --steady: #FFB23E;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --display: 'Space Grotesk', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(120% 90% at 20% -10%, #141c2c 0%, var(--ink) 55%);
+    color: var(--bone);
+    font-family: var(--mono);
+    min-height: 100vh;
+    padding: clamp(16px, 3vw, 40px);
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---- Header ---- */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--panel-edge);
+    padding-bottom: 18px;
+  }
+  .title-block h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(28px, 5vw, 52px);
+    letter-spacing: -0.02em;
+    margin: 0;
+    line-height: 0.95;
+    color: var(--bone);
+  }
+  .title-block h1 .accent { color: var(--amber); }
+  .title-block p {
+    margin: 8px 0 0;
+    color: var(--bone-dim);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .status {
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    text-align: right;
+    min-width: 150px;
+  }
+  .status .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--amber-dim);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .status.live .dot { background: var(--rising); box-shadow: 0 0 10px var(--rising); animation: blink 1.2s infinite; }
+  .status.done .dot { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+  .status .label { color: var(--bone-dim); text-transform: uppercase; }
+  @keyframes blink { 50% { opacity: 0.3; } }
+
+  button.scan {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--amber);
+    border: none;
+    padding: 13px 24px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+    box-shadow: 0 0 0 rgba(255,178,62,0);
+  }
+  button.scan:hover { box-shadow: 0 0 24px rgba(255,178,62,0.35); }
+  button.scan:active { transform: translateY(1px); }
+  button.scan:focus-visible { outline: 2px solid var(--bone); outline-offset: 3px; }
+  button.scan:disabled { background: var(--amber-dim); cursor: wait; color: var(--panel); }
+
+  /* ---- Main grid ---- */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(280px, 420px) 1fr;
+    gap: 28px;
+    margin-top: 28px;
+  }
+  @media (max-width: 780px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Scope ---- */
+  .scope-wrap {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-radius: 4px;
+    padding: 18px;
+    position: relative;
+    align-self: start;
+  }
+  .scope-wrap .scope-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--bone-dim);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  svg.scope { width: 100%; height: auto; display: block; }
+  .sweep { transform-origin: 200px 200px; animation: sweep 4s linear infinite; }
+  @keyframes sweep { to { transform: rotate(360deg); } }
+
+  .blip { cursor: pointer; }
+  .blip circle.core { transition: r 0.2s ease; }
+  .blip.pulse circle.halo { animation: halo 2.4s ease-out infinite; transform-origin: center; }
+  @keyframes halo {
+    0% { opacity: 0.55; r: 4px; }
+    70% { opacity: 0; r: 20px; }
+    100% { opacity: 0; }
+  }
+  .blip text { font-family: var(--mono); font-size: 11px; fill: var(--bone); opacity: 0; transition: opacity 0.15s; pointer-events: none; }
+  .blip:hover text, .blip.active text { opacity: 1; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--bone-dim);
+    flex-wrap: wrap;
+  }
+  .legend span::before {
+    content: "";
+    display: inline-block;
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .legend .l-rise::before { background: var(--rising); }
+  .legend .l-fall::before { background: var(--falling); }
+  .legend .l-steady::before { background: var(--steady); }
+
+  /* ---- Leaderboard ---- */
+  .board { display: flex; flex-direction: column; gap: 10px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-edge);
+    border-left: 3px solid var(--amber-dim);
+    border-radius: 3px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: rise 0.4s ease forwards;
+  }
+  @keyframes rise { to { opacity: 1; transform: translateY(0); } }
+  .card.rising { border-left-color: var(--rising); }
+  .card.falling { border-left-color: var(--falling); }
+  .card.steady { border-left-color: var(--steady); }
+  .card:hover, .card.active { background: #182033; transform: translateX(2px); }
+
+  .rank {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--bone-dim);
+    line-height: 1;
+    padding-top: 2px;
+  }
+  .card:nth-child(1) .rank { color: var(--amber); }
+
+  .info .name {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 17px;
+    color: var(--bone);
+    letter-spacing: -0.01em;
+  }
+  .info .sub { font-size: 11px; color: var(--amber-dim); margin-top: 2px; letter-spacing: 0.05em; }
+  .info .why { font-size: 12.5px; color: var(--bone-dim); margin-top: 7px; line-height: 1.45; }
+  .info .eg {
+    font-size: 12px; color: var(--bone); margin-top: 7px;
+    border-left: 2px solid var(--panel-edge); padding-left: 9px; font-style: italic; opacity: 0.85;
+  }
+
+  .metric { text-align: right; min-width: 90px; }
+  .metric .heat {
+    font-family: var(--mono); font-weight: 600; font-size: 24px;
+    line-height: 1; color: var(--amber);
+  }
+  .metric .trend { font-size: 12px; margin-top: 4px; letter-spacing: 0.05em; }
+  .trend.rising { color: var(--rising); }
+  .trend.falling { color: var(--falling); }
+  .trend.steady { color: var(--steady); }
+  .bar { height: 4px; background: var(--panel-edge); border-radius: 2px; margin-top: 9px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--amber); border-radius: 2px; width: 0; transition: width 0.7s ease; }
+  .card.rising .bar > i { background: var(--rising); }
+  .card.falling .bar > i { background: var(--falling); }
+
+  /* ---- States ---- */
+  .placeholder, .errbox {
+    background: var(--panel);
+    border: 1px dashed var(--panel-edge);
+    border-radius: 4px;
+    padding: 40px 24px;
+    text-align: center;
+    color: var(--bone-dim);
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .errbox { border-color: var(--rising); border-style: solid; color: var(--bone); }
+  .errbox b { color: var(--rising); }
+  .source-note { margin-top: 18px; font-size: 11px; color: var(--bone-dim); letter-spacing: 0.03em; }
+  .source-note a { color: var(--amber-dim); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sweep { animation: none; }
+    .blip.pulse circle.halo { animation: none; opacity: 0; }
+    .card { animation: none; opacity: 1; transform: none; }
+    .status.live .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="title-block">
+      <h1>MEME TREND <span class="accent">RADAR</span></h1>
+      <p>Live meme-format intelligence &middot; sourced from the meme subreddits</p>
+    </div>
+    <div class="controls">
+      <div class="status" id="status"><span class="dot"></span><span class="label" id="statusLabel">standby</span></div>
+      <button class="scan" id="scanBtn">Scan now</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="scope-wrap">
+      <div class="scope-label"><span>Scope</span><span id="scopeCount">0 signals</span></div>
+      <svg class="scope" viewBox="0 0 400 400" role="img" aria-label="Radar scope showing trending meme formats">
+        <defs>
+          <radialGradient id="scopeGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#1a2740" />
+            <stop offset="100%" stop-color="#0d1220" />
+          </radialGradient>
+          <linearGradient id="sweepGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="rgba(255,178,62,0)" />
+            <stop offset="100%" stop-color="rgba(255,178,62,0.45)" />
+          </linearGradient>
+        </defs>
+        <circle cx="200" cy="200" r="190" fill="url(#scopeGlow)" stroke="var(--grid)" />
+        <circle cx="200" cy="200" r="140" fill="none" stroke="var(--grid)" stroke-dasharray="2 5" />
+        <circle cx="200" cy="200" r="90" fill="none" stroke="var(--grid)" stroke-dasharray="2 5" />
+        <circle cx="200" cy="200" r="40" fill="none" stroke="var(--grid)" stroke-dasharray="2 5" />
+        <line x1="10" y1="200" x2="390" y2="200" stroke="var(--grid)" stroke-dasharray="2 5" />
+        <line x1="200" y1="10" x2="200" y2="390" stroke="var(--grid)" stroke-dasharray="2 5" />
+        <g class="sweep">
+          <path d="M200 200 L200 12 A188 188 0 0 1 330 70 Z" fill="url(#sweepGrad)" />
+          <line x1="200" y1="200" x2="200" y2="12" stroke="var(--amber)" stroke-width="1.5" opacity="0.7" />
+        </g>
+        <g id="blips"></g>
+      </svg>
+      <div class="legend">
+        <span class="l-rise">rising</span>
+        <span class="l-fall">cooling</span>
+        <span class="l-steady">steady</span>
+      </div>
+    </div>
+
+    <div id="board" class="board">
+      <div class="placeholder" id="placeholder">
+        Hit <b style="color:var(--amber)">Scan now</b> to sweep the meme subreddits.<br />
+        An agent searches what's spiking right now, clusters it into formats, and plots each one by heat.
+      </div>
+    </div>
+  </div>
+
+  <div class="source-note" id="sourceNote"></div>
+</div>
+
+<script>
+// ---------- Fallback sample so the demo never dies on stage ----------
+const SAMPLE = {
+  clusters: [
+    { format_name: "Italian Brainrot", heat: 94, trend: "rising", subreddit: "r/dankmemes", why_trending: "AI-generated absurd characters with mock-Italian names keep multiplying across feeds.", example_caption: "when the tralalero tralala hits at 3am" },
+    { format_name: "Aura Points / -1000 Aura", heat: 88, trend: "rising", subreddit: "r/memes", why_trending: "Everyday fails scored in 'aura' has become the default reaction template.", example_caption: "tripped in front of my crush (-1000 aura)" },
+    { format_name: "Chill Guy", heat: 71, trend: "falling", subreddit: "r/MemeEconomy", why_trending: "Still posted heavily but engagement per post is sliding as it saturates.", example_caption: "my final brain cell during exams: just a chill guy" },
+    { format_name: "Two-panel 'nah id win'", heat: 66, trend: "steady", subreddit: "r/memes", why_trending: "Reliable reaction format for underdog confidence, consistent daily volume.", example_caption: "deadline in 1hr, 0 words written — nah id win" },
+    { format_name: "POV: you're the...", heat: 58, trend: "rising", subreddit: "r/dankmemes", why_trending: "Second-person POV setups pair well with the week's trending audio.", example_caption: "POV: you're the one unread message ruining someone's day" },
+    { format_name: "Skibidi fatigue jokes", heat: 41, trend: "falling", subreddit: "r/memes", why_trending: "Now mostly ironic meta-jokes about the format being over.", example_caption: "explaining to my kids what skibidi meant" }
+  ]
+};
+
+const $ = (id) => document.getElementById(id);
+const board = $('board');
+const blipsG = $('blips');
+const statusEl = $('status');
+const statusLabel = $('statusLabel');
+const scanBtn = $('scanBtn');
+
+function setStatus(state, text) {
+  statusEl.className = 'status' + (state ? ' ' + state : '');
+  statusLabel.textContent = text;
+}
+
+const CYCLE = [
+  'pinging r/memes', 'reading r/dankmemes', 'scanning r/MemeEconomy',
+  'clustering formats', 'scoring heat', 'plotting blips'
+];
+let cycleTimer = null;
+function startCycle() {
+  let i = 0;
+  setStatus('live', CYCLE[0]);
+  cycleTimer = setInterval(() => { i = (i + 1) % CYCLE.length; setStatus('live', CYCLE[i]); }, 1100);
+}
+function stopCycle() { clearInterval(cycleTimer); }
+
+// ---------- The agent call: web search + cluster -> JSON ----------
+async function fetchTrends() {
+  const prompt = `You are a live meme-trend analyst. Use web search to find what meme FORMATS and templates are trending RIGHT NOW on Reddit's meme communities (r/memes, r/dankmemes, r/MemeEconomy). Search for current/recent activity.
+
+Then cluster what you find into 6 distinct trending meme formats. For each, judge a "heat" score 0-100 (how hot it is right now) and whether it is "rising", "falling", or "steady".
+
+Return ONLY a JSON object, no prose, no markdown fences. Shape:
+{
+  "clusters": [
+    {
+      "format_name": "short punchy name",
+      "heat": <int 0-100>,
+      "trend": "rising" | "falling" | "steady",
+      "subreddit": "r/...",
+      "why_trending": "one sentence, specific",
+      "example_caption": "a short funny example caption in the format's voice"
+    }
+  ]
+}
+Sort clusters by heat, highest first.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 3072,
+      messages: [{ role: "user", content: prompt }],
+      tools: [{ type: "web_search_20250305", name: "web_search" }]
+    })
+  });
+  if (!res.ok) throw new Error("api " + res.status);
+  const data = await res.json();
+
+  // Extract JSON from the text blocks (ignore tool_use / tool_result blocks)
+  const text = (data.content || [])
+    .filter(b => b.type === "text")
+    .map(b => b.text)
+    .join("\n");
+  const cleaned = text.replace(/```json/gi, "").replace(/```/g, "");
+  const first = cleaned.indexOf("{");
+  const last = cleaned.lastIndexOf("}");
+  if (first === -1 || last === -1) throw new Error("no json");
+  const parsed = JSON.parse(cleaned.slice(first, last + 1));
+  if (!parsed.clusters || !parsed.clusters.length) throw new Error("empty");
+  return parsed;
+}
+
+// ---------- Render ----------
+function render(payload, live) {
+  const clusters = payload.clusters.slice(0, 6).sort((a, b) => b.heat - a.heat);
+  board.innerHTML = "";
+  blipsG.innerHTML = "";
+  $('scopeCount').textContent = clusters.length + " signals";
+
+  const trendColor = { rising: 'var(--rising)', falling: 'var(--falling)', steady: 'var(--steady)' };
+  const arrow = { rising: '\u25B2 rising', falling: '\u25BC cooling', steady: '\u25AC steady' };
+
+  clusters.forEach((c, i) => {
+    const trend = ['rising','falling','steady'].includes(c.trend) ? c.trend : 'steady';
+    const heat = Math.max(0, Math.min(100, Math.round(c.heat)));
+
+    // --- card ---
+    const card = document.createElement('div');
+    card.className = 'card ' + trend;
+    card.style.animationDelay = (i * 0.06) + 's';
+    card.dataset.idx = i;
+    card.innerHTML = `
+      <div class="rank">${String(i + 1).padStart(2, '0')}</div>
+      <div class="info">
+        <div class="name">${esc(c.format_name)}</div>
+        <div class="sub">${esc(c.subreddit || '')}</div>
+        <div class="why">${esc(c.why_trending || '')}</div>
+        ${c.example_caption ? `<div class="eg">&ldquo;${esc(c.example_caption)}&rdquo;</div>` : ''}
+      </div>
+      <div class="metric">
+        <div class="heat">${heat}</div>
+        <div class="trend ${trend}">${arrow[trend]}</div>
+        <div class="bar"><i data-w="${heat}"></i></div>
+      </div>`;
+    board.appendChild(card);
+
+    // --- blip: hotter = closer to center ---
+    const angle = (i / clusters.length) * Math.PI * 2 - Math.PI / 2 + 0.35;
+    const r = 30 + (1 - heat / 100) * 150;
+    const x = 200 + Math.cos(angle) * r;
+    const y = 200 + Math.sin(angle) * r;
+    const size = 4 + (heat / 100) * 7;
+    const col = trendColor[trend];
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'blip pulse');
+    g.dataset.idx = i;
+    g.innerHTML = `
+      <circle class="halo" cx="${x}" cy="${y}" r="${size}" fill="${col}" />
+      <circle class="core" cx="${x}" cy="${y}" r="${size}" fill="${col}" />
+      <text x="${x + size + 4}" y="${y + 4}">${esc(c.format_name)}</text>`;
+    blipsG.appendChild(g);
+
+    // link hover between blip and card
+    const sync = (on) => {
+      card.classList.toggle('active', on);
+      g.classList.toggle('active', on);
+    };
+    card.addEventListener('mouseenter', () => sync(true));
+    card.addEventListener('mouseleave', () => sync(false));
+    g.addEventListener('mouseenter', () => sync(true));
+    g.addEventListener('mouseleave', () => sync(false));
+  });
+
+  // animate bars
+  requestAnimationFrame(() => {
+    board.querySelectorAll('.bar > i').forEach(el => { el.style.width = el.dataset.w + '%'; });
+  });
+
+  $('sourceNote').innerHTML = live
+    ? 'Live scan &middot; an agent searched the web for current meme-subreddit activity and clustered it. Heat is the model\u2019s estimate.'
+    : '<b style="color:var(--amber)">Sample data</b> &middot; live scan was unavailable, showing a bundled snapshot so the radar still runs.';
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, m =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+// ---------- Wire up ----------
+async function scan() {
+  scanBtn.disabled = true;
+  board.innerHTML = '<div class="placeholder">Sweeping the meme subreddits\u2026 clustering formats\u2026</div>';
+  blipsG.innerHTML = '';
+  startCycle();
+  try {
+    const payload = await fetchTrends();
+    stopCycle();
+    setStatus('done', 'scan complete');
+    render(payload, true);
+  } catch (e) {
+    stopCycle();
+    setStatus('done', 'sample mode');
+    render(SAMPLE, false);
+  } finally {
+    scanBtn.disabled = false;
+    scanBtn.textContent = 'Scan again';
+  }
+}
+
+scanBtn.addEventListener('click', scan);
+</script>
+</body>
+</html>
